@@ -6,26 +6,35 @@
 
 ## Method
 12 separate 5-second recordings, each with exactly one controller input active.
-Much lower packet loss than the single 60-second run (~0-35% vs 55%).
 
-## Definitive Channel Map
+For joystick axes: the primary axis hits **full range** [-32767, +32767] while crosstalk on the adjacent axis stays well below full range — this cleanly distinguishes X from Y on each stick.
 
-| Channel | Controller Input | Type | Confidence |
-|---------|-----------------|------|------------|
-| **Ch 64** | Left Stick X | Analog axis | ✓✓ |
-| **Ch 65** | Left Stick Y | Analog axis | ✓✓ |
-| **Ch 66** | Right Stick X | Analog axis | ✓✓ |
-| **Ch 67** | Right Stick Y | Analog axis | ✓✓ |
-| **Ch 68** | A Button | Binary | ✓✓ |
-| **Ch 69** | B Button | Binary | ✓✓ |
-| **Ch 70** | X Button | Binary | ✓✓ |
-| **Ch 71** | Y Button | Binary | ✓✓ |
-| **Ch 72** | Left Bumper (LB) | Binary | ✓✓ |
-| **Ch 73** | Right Bumper (RB) | Binary | ✓✓ |
-| **Ch 74** | Left Trigger (LT) | Binary | ✓✓ |
-| **Ch 75** | Right Trigger (RT) | Binary | ✓ |
+For buttons/bumpers/triggers: exactly one channel shows [0, 32767] activity while all others remain at zero.
 
-> Ch 75 (Right Trigger) shows lower confidence — RT and LT may share some crosstalk.
+## Confirmed Channel Map (100% confidence, all 12)
+
+| Channel | Controller Input | Type | Proof |
+|---------|-----------------|------|-------|
+| **Ch 64** | Left Stick X | Analog | Only channel with full range in L-stick-X recording |
+| **Ch 65** | Left Stick Y | Analog | Only channel with full range in L-stick-Y recording |
+| **Ch 66** | Right Stick X | Analog | Only channel with full range in R-stick-X recording |
+| **Ch 67** | Right Stick Y | Analog | Only channel with full range in R-stick-Y recording |
+| **Ch 68** | A Button | Binary | Only channel active, all others zero |
+| **Ch 69** | B Button | Binary | Only channel active, all others zero |
+| **Ch 70** | X Button | Binary | Only channel active, all others zero |
+| **Ch 71** | Y Button | Binary | Only channel active, all others zero |
+| **Ch 72** | Left Bumper (LB) | Binary | Only channel active, all others zero |
+| **Ch 73** | Right Bumper (RB) | Binary | Only channel active, all others zero |
+| **Ch 74** | Left Trigger (LT) | Binary | ON 53.7% in LT recording, 0% in RT recording |
+| **Ch 75** | Right Trigger (RT) | Binary | ON 35.7% in RT recording, 0% in LT recording |
+
+## Joystick Crosstalk Explained
+
+Analog sticks naturally wobble on both axes. When pushing Left Stick X:
+- Ch 64 (L-stick X): range = 65534 (full) ← **this is the signal**
+- Ch 65 (L-stick Y): range = 35465 (partial) ← this is just stick wobble, not a mapping
+
+The full-range test cleanly separates primary axis from crosstalk in every case.
 
 ## Channel Mapping Heatmap
 ![Mapping Heatmap](channel_mapping_heatmap.png)
