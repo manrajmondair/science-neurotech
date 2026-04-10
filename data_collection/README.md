@@ -39,11 +39,22 @@ Each run folder contains:
 | 33 | Joystick Y (left stick) | [-32767, +32767] |
 | 34 | A Button | 0 (off) / 32767 (on) |
 
+## Channel Layout (Hard Mode — Peripheral 108)
+
+| Channels | Content | Range |
+|----------|---------|-------|
+| 0–63 | Encoded neural data (64ch) | ~[-790, +165] raw ADC |
+| 64–67 | 4 analog axes (joysticks/triggers) | [-32767, +32767] |
+| 68–75 | 8 binary buttons (ABXY, bumpers, etc) | 0 / 32767 |
+
+> Exact input↔channel mapping TBD — requires isolated input testing (Run 004).
+
 ---
 
 ## Runs
 
-| Run | Description | Duration | Channels | Status |
-|-----|-------------|----------|----------|--------|
-| [001](run_001_idle_baseline/) | Idle baseline — no controller input | 6.7s | 35 | Baseline |
-| [002](run_002_active_joystick/) | Active joystick + A button input | 20.7s | 35 | Training data |
+| Run | Description | Duration | Channels | Mode | Status |
+|-----|-------------|----------|----------|------|--------|
+| [001](run_001_idle_baseline/) | Idle baseline — no controller input | 6.7s | 35 | Easy | Baseline |
+| [002](run_002_active_joystick/) | Active joystick + A button input | 20.7s | 35 | Easy | Training data |
+| [003](run_003_hard_mode_all_inputs/) | All inputs active (unstructured) | 3.7s | 76 | Hard | Input discovery |
