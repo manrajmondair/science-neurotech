@@ -41,13 +41,23 @@ Each run folder contains:
 
 ## Channel Layout (Hard Mode — Peripheral 108)
 
-| Channels | Content | Range |
-|----------|---------|-------|
-| 0–63 | Encoded neural data (64ch) | ~[-790, +165] raw ADC |
-| 64–67 | 4 analog axes (joysticks/triggers) | [-32767, +32767] |
-| 68–75 | 8 binary buttons (ABXY, bumpers, etc) | 0 / 32767 |
+| Channel | Content | Type | Range |
+|---------|---------|------|-------|
+| 0–63 | Encoded neural data | Neural | ~[-790, +165] raw ADC |
+| 64 | **Left Stick X** | Analog axis | [-32767, +32767] |
+| 65 | **Left Stick Y** | Analog axis | [-32767, +32767] |
+| 66 | **Right Stick X** | Analog axis | [-32767, +32767] |
+| 67 | **Right Stick Y** | Analog axis | [-32767, +32767] |
+| 68 | **A Button** | Binary | 0 / 32767 |
+| 69 | **B Button** | Binary | 0 / 32767 |
+| 70 | **X Button** | Binary | 0 / 32767 |
+| 71 | **Y Button** | Binary | 0 / 32767 |
+| 72 | **Left Bumper (LB)** | Binary | 0 / 32767 |
+| 73 | **Right Bumper (RB)** | Binary | 0 / 32767 |
+| 74 | **Left Trigger (LT)** | Binary | 0 / 32767 |
+| 75 | **Right Trigger (RT)** | Binary | 0 / 32767 |
 
-> Exact input↔channel mapping TBD — requires isolated input testing (Run 004).
+> Mapping confirmed via individual isolated recordings in [Run 005](run_005_individual_mapping/).
 
 ---
 
@@ -59,3 +69,4 @@ Each run folder contains:
 | [002](run_002_active_joystick/) | Active joystick + A button input | 20.7s | 35 | Easy | Training data |
 | [003](run_003_hard_mode_all_inputs/) | All inputs active (unstructured) | 3.7s | 76 | Hard | Input discovery |
 | [004](run_004_structured_mapping/) | One input at a time (5s each) | 27.2s | 76 | Hard | Partial mapping |
+| [005](run_005_individual_mapping/) | 12 individual isolated recordings | 12×5s | 76 | Hard | **Mapping complete** |
