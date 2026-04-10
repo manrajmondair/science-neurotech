@@ -8,7 +8,7 @@ Each run folder contains:
 - `label_channels.png` — time-series of controller ground truth signals
 - `correlation_heatmap.png` — neural↔label correlation matrix
 
-> Raw HDF5 files are stored locally in `data/recordings/` (too large for git).
+> Raw HDF5 files stored in `data/recordings/` via **Git LFS** — teammates run `git lfs install` then `git pull`.
 
 ---
 
@@ -58,3 +58,4 @@ Each run folder contains:
 | [001](run_001_idle_baseline/) | Idle baseline — no controller input | 6.7s | 35 | Easy | Baseline |
 | [002](run_002_active_joystick/) | Active joystick + A button input | 20.7s | 35 | Easy | Training data |
 | [003](run_003_hard_mode_all_inputs/) | All inputs active (unstructured) | 3.7s | 76 | Hard | Input discovery |
+| [004](run_004_structured_mapping/) | One input at a time (5s each) | 27.2s | 76 | Hard | Partial mapping |
