@@ -19,12 +19,16 @@ dependencies = [
     "lerobot",
     "pynput>=1.7.0",
     "feetech-servo-sdk>=1.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pybullet",
 ]
 
 [project.scripts]
 arm-keyboard-teleop = "arm.keyboard_teleop:main"
 arm-web-teleop = "arm.web_teleop_server:main"
 arm-check-motor-ids = "arm.motor_id_check:main"
+arm-api-server = "arm.api_server:main"
 
 [build-system]
 requires = ["setuptools>=69"]
