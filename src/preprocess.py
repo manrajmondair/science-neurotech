@@ -220,13 +220,22 @@ def load_h5_recording(
     with h5py.File(fpath, "r") as f:
         hz = int(f.attrs.get("sample_rate_hz", SAMPLE_HZ))
         raw = f["acquisition/ElectricalSeries"][:]
+        # Read the electrode count actually stored in the file
+        actual_n_ch = int(f["general/extracellular_ephys/electrodes/id"].shape[0])
+
+    # Guard: skip recordings with the wrong channel layout (e.g. early 35-ch runs)
+    if actual_n_ch != n_total:
+        raise ValueError(
+            f"Expected {n_total} channels but file has {actual_n_ch}. "
+            f"Skipping (not a hard-mode 76-channel recording)."
+        )
 
     # Interleaved flat -> (n_total, n_timepoints)
     n_timepoints = raw.shape[0] // n_total
     data = raw[: n_timepoints * n_total].reshape(n_timepoints, n_total).T.astype(np.float32)
 
-    neural  = data[:n_neural]              # (64, T)
-    targets = data[n_neural : n_neural + n_targets]  # (12, T)
+    neural  = data[:n_neural]                          # (64, T)
+    targets = data[n_neural : n_neural + n_targets]    # (12, T)
 
     return neural, targets, hz
 

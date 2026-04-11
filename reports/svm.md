@@ -34,29 +34,29 @@
 
     | k | Train R2 | Test R2 |
     |---|---------|--------|
-    | 2.5 | -0.0436 | -0.0438 |
-| 3.0 | -0.0436 | -0.0438 |
-| 3.5 | -0.0436 | -0.0438 |
-| 4.0 | -0.0436 | -0.0438 |
+    | 2.5 | -0.0377 | -0.0304 |
+| 3.0 | -0.0377 | -0.0304 |
+| 3.5 | -0.0377 | -0.0304 |
+| 4.0 | -0.0377 | -0.0304 |
 
-    **Best k:** `3.5` -> Test R2 = **-0.0438**
+    **Best k:** `3.0` -> Test R2 = **-0.0304**
 
-    ### Per-Channel R2 Breakdown (k = 3.5)
+    ### Per-Channel R2 Breakdown (k = 3.0)
 
     | Channel | Test R2 |
     |---------|---------|
-    | Ch 0 | 0.0000 |
-| Ch 1 | 0.0000 |
-| Ch 2 | 0.0000 |
-| Ch 3 | 0.0000 |
+    | Ch 0 | -0.0045 |
+| Ch 1 | -0.0008 |
+| Ch 2 | -0.0004 |
+| Ch 3 | -0.0004 |
 | Ch 4 | 0.0000 |
 | Ch 5 | 0.0000 |
 | Ch 6 | 0.0000 |
 | Ch 7 | 0.0000 |
-| Ch 8 | -0.1972 |
-| Ch 9 | -0.3282 |
-| Ch 10 | 0.0000 |
-| Ch 11 | 0.0000 |
+| Ch 8 | 0.0000 |
+| Ch 9 | 0.0000 |
+| Ch 10 | -0.1854 |
+| Ch 11 | -0.1737 |
 
     ---
 
@@ -67,20 +67,20 @@
     ![R2 vs k](figures\svm_r2_vs_k.png)
 *Mean train and test R2 across k values for SVM*
 
-    ### Per-Channel R2 (Best k = 3.5)
+    ### Per-Channel R2 (Best k = 3.0)
 
-    ![Per-channel R2](figures\svm_per_channel_k3.5.png)
-*Per-channel test R2 for k=3.5*
+    ![Per-channel R2](figures\svm_per_channel_k3.0.png)
+*Per-channel test R2 for k=3.0*
 
-    ### Predicted vs Actual -- Channel 0 (Best k = 3.5)
+    ### Predicted vs Actual -- Channel 0 (Best k = 3.0)
 
-    ![Pred vs Actual](figures\svm_pred_vs_actual_k3.5.png)
-*Predicted vs actual for channel 0, k=3.5*
+    ![Pred vs Actual](figures\svm_pred_vs_actual_k3.0.png)
+*Predicted vs actual for channel 0, k=3.0*
 
-    ### Residuals -- Channel 0 (Best k = 3.5)
+    ### Residuals -- Channel 0 (Best k = 3.0)
 
-    ![Residuals](figures\svm_residuals_k3.5.png)
-*Residual distribution for channel 0, k=3.5*
+    ![Residuals](figures\svm_residuals_k3.0.png)
+*Residual distribution for channel 0, k=3.0*
 
     ---
 
@@ -92,11 +92,11 @@
     At low k, the threshold is loose -- many sub-threshold noise fluctuations are
     counted as spikes, inflating feature values and adding noise.
     At high k, only strong deflections are counted -- fewer features, but higher
-    SNR. The optimal k for this model is **3.5**.
+    SNR. The optimal k for this model is **3.0**.
 
     ### Overfitting / Underfitting
 
-    The largest train-test gap is **0.0002** at k=2.5. The model generalises well; train/test performance is closely matched.
+    The largest train-test gap is **-0.0073** at k=3.0. The model generalises well; train/test performance is closely matched.
 
     ### Strengths
 
@@ -110,4 +110,4 @@
 
     ## Conclusion
 
-    **SVM** achieves weak decoding performance with a best test R2 of **-0.0438** at k=3.5. We recommend using **k=3.5** for this model in the final BCI pipeline. This model is best suited for offline analysis rather than real-time on-device inference.
+    **SVM** achieves weak decoding performance with a best test R2 of **-0.0304** at k=3.0. We recommend using **k=3.0** for this model in the final BCI pipeline. This model is best suited for offline analysis rather than real-time on-device inference.

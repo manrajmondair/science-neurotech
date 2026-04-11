@@ -34,29 +34,29 @@
 
     | k | Train R2 | Test R2 |
     |---|---------|--------|
-    | 2.5 | 0.0007 | -0.0216 |
-| 3.0 | 0.0005 | -0.0223 |
-| 3.5 | -0.0002 | -0.0226 |
-| 4.0 | -0.0014 | -0.0233 |
+    | 2.5 | 0.0042 | -0.0113 |
+| 3.0 | 0.0048 | -0.0111 |
+| 3.5 | 0.0046 | -0.0111 |
+| 4.0 | 0.0043 | -0.0112 |
 
-    **Best k:** `2.5` -> Test R2 = **-0.0216**
+    **Best k:** `3.0` -> Test R2 = **-0.0111**
 
-    ### Per-Channel R2 Breakdown (k = 2.5)
+    ### Per-Channel R2 Breakdown (k = 3.0)
 
     | Channel | Test R2 |
     |---------|---------|
-    | Ch 0 | 0.0000 |
-| Ch 1 | 0.0000 |
-| Ch 2 | 0.0000 |
-| Ch 3 | 0.0000 |
+    | Ch 0 | -0.0064 |
+| Ch 1 | -0.0022 |
+| Ch 2 | -0.0002 |
+| Ch 3 | -0.0079 |
 | Ch 4 | 0.0000 |
 | Ch 5 | 0.0000 |
 | Ch 6 | 0.0000 |
 | Ch 7 | 0.0000 |
-| Ch 8 | -0.0783 |
-| Ch 9 | -0.1813 |
-| Ch 10 | 0.0000 |
-| Ch 11 | 0.0000 |
+| Ch 8 | 0.0000 |
+| Ch 9 | 0.0000 |
+| Ch 10 | -0.0662 |
+| Ch 11 | -0.0503 |
 
     ---
 
@@ -67,20 +67,20 @@
     ![R2 vs k](figures\cnn1d_r2_vs_k.png)
 *Mean train and test R2 across k values for CNN1D*
 
-    ### Per-Channel R2 (Best k = 2.5)
+    ### Per-Channel R2 (Best k = 3.0)
 
-    ![Per-channel R2](figures\cnn1d_per_channel_k2.5.png)
-*Per-channel test R2 for k=2.5*
+    ![Per-channel R2](figures\cnn1d_per_channel_k3.0.png)
+*Per-channel test R2 for k=3.0*
 
-    ### Predicted vs Actual -- Channel 0 (Best k = 2.5)
+    ### Predicted vs Actual -- Channel 0 (Best k = 3.0)
 
-    ![Pred vs Actual](figures\cnn1d_pred_vs_actual_k2.5.png)
-*Predicted vs actual for channel 0, k=2.5*
+    ![Pred vs Actual](figures\cnn1d_pred_vs_actual_k3.0.png)
+*Predicted vs actual for channel 0, k=3.0*
 
-    ### Residuals -- Channel 0 (Best k = 2.5)
+    ### Residuals -- Channel 0 (Best k = 3.0)
 
-    ![Residuals](figures\cnn1d_residuals_k2.5.png)
-*Residual distribution for channel 0, k=2.5*
+    ![Residuals](figures\cnn1d_residuals_k3.0.png)
+*Residual distribution for channel 0, k=3.0*
 
     ---
 
@@ -88,15 +88,15 @@
 
     ### Performance Trend vs k
 
-    Test R2 **decreases** as k increases from 2.5 to 4.0.
+    Test R2 **increases** as k increases from 2.5 to 4.0.
     At low k, the threshold is loose -- many sub-threshold noise fluctuations are
     counted as spikes, inflating feature values and adding noise.
     At high k, only strong deflections are counted -- fewer features, but higher
-    SNR. The optimal k for this model is **2.5**.
+    SNR. The optimal k for this model is **3.0**.
 
     ### Overfitting / Underfitting
 
-    The largest train-test gap is **0.0228** at k=3.0. The model generalises well; train/test performance is closely matched.
+    The largest train-test gap is **0.0158** at k=3.0. The model generalises well; train/test performance is closely matched.
 
     ### Strengths
 
@@ -110,4 +110,4 @@
 
     ## Conclusion
 
-    **CNN1D** achieves weak decoding performance with a best test R2 of **-0.0216** at k=2.5. We recommend using **k=2.5** for this model in the final BCI pipeline. For deployment in the Synapse App, this model is a good candidate due to its speed and ONNX compatibility.
+    **CNN1D** achieves weak decoding performance with a best test R2 of **-0.0111** at k=3.0. We recommend using **k=3.0** for this model in the final BCI pipeline. For deployment in the Synapse App, this model is a good candidate due to its speed and ONNX compatibility.
