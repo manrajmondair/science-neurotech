@@ -24,7 +24,11 @@ class SO101ArmAPI:
     # Maximum allowed divergence (degrees) between commanded and sent before
     # _last_targets is pulled toward hardware feedback to prevent permanent drift.
     target_sync_limit: float = 5.0
-    _last_targets: dict[str, float] = field(default_factory=dict, init=False, repr=False)
+    # EMA blend factor: 1.0 = no smoothing, lower = smoother/slower.
+    smoothing_alpha: float = 0.7
+    _last_targets: dict[str, float] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def connect(self) -> None:
         self.controller.connect()
@@ -38,11 +42,24 @@ class SO101ArmAPI:
     def get_end_effector_pose(self) -> ArmPose:
         return self.ik_translator.forward(self.controller.get_observation())
 
-    def send_end_effector_delta(self, command: EndEffectorDeltaCommand) -> EndEffectorDeltaResult:
+    def send_end_effector_delta(
+        self, command: EndEffectorDeltaCommand
+    ) -> EndEffectorDeltaResult:
         observation = self.controller.get_observation()
         targets = self.ik_translator.translate(
             command, observation, last_targets=self._last_targets or None
         )
+
+        # Apply EMA smoothing: blend toward the new IK target from the last
+        # sent position so the arm ramps smoothly rather than snapping.
+        if self._last_targets and self.smoothing_alpha < 1.0:
+            alpha = self.smoothing_alpha
+            targets = {
+                motor: alpha * targets[motor]
+                + (1.0 - alpha) * self._last_targets.get(motor, targets[motor])
+                for motor in targets
+            }
+
         sent_targets = self.controller.send_joint_targets(targets)
 
         # Sync _last_targets: if hardware feedback diverges from commanded by more
@@ -53,7 +70,9 @@ class SO101ArmAPI:
             sent = sent_targets.get(motor, commanded)
             diff = commanded - sent
             if abs(diff) > self.target_sync_limit:
-                synced[motor] = sent + (self.target_sync_limit if diff > 0 else -self.target_sync_limit)
+                synced[motor] = sent + (
+                    self.target_sync_limit if diff > 0 else -self.target_sync_limit
+                )
             else:
                 synced[motor] = commanded
         self._last_targets = synced

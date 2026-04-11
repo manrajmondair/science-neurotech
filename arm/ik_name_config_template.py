@@ -19,7 +19,6 @@ IK_END_EFFECTOR_LINK = "gripper"
 # Optional gripper joint names if your URDF exposes them explicitly.
 GRIPPER_JOINT_NAMES = [
     "gripper",
-    "gripper_frame_joint",
 ]
 
 # Optional notes while mapping from URDF names to the control stack:

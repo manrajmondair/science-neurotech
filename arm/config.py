@@ -64,9 +64,16 @@ class ArmSettings:
     ik_end_effector_link: str = "tool_tip"
     loop_hz: float = 20.0
     step_sizes: dict[str, float] = field(default_factory=_default_step_sizes)
-    api_ui_step_sizes: dict[str, float] = field(default_factory=_default_api_ui_step_sizes)
+    api_ui_step_sizes: dict[str, float] = field(
+        default_factory=_default_api_ui_step_sizes
+    )
     api_ui_repeat_ms: int = 20
-    max_relative_target: dict[str, float] = field(default_factory=_default_max_relative_target)
+    max_relative_target: dict[str, float] = field(
+        default_factory=_default_max_relative_target
+    )
+    # EMA smoothing factor applied to joint targets before sending to hardware.
+    # 1.0 = no smoothing (instantaneous), lower values = smoother but slower response.
+    smoothing_alpha: float = 0.7
     dry_run: bool = False
 
     def with_overrides(self, overrides: Mapping[str, Any]) -> "ArmSettings":
@@ -140,8 +147,12 @@ def validate_settings(settings: ArmSettings) -> None:
 
     missing_ui_keys = {"linear", "pan", "roll", "jaw"} - set(settings.api_ui_step_sizes)
     if missing_ui_keys:
-        raise ValueError(f"Missing api_ui_step_sizes entries: {sorted(missing_ui_keys)}")
+        raise ValueError(
+            f"Missing api_ui_step_sizes entries: {sorted(missing_ui_keys)}"
+        )
 
     missing_limits = set(MOTOR_NAMES) - set(settings.max_relative_target)
     if missing_limits:
-        raise ValueError(f"Missing max_relative_target entries for joints: {sorted(missing_limits)}")
+        raise ValueError(
+            f"Missing max_relative_target entries for joints: {sorted(missing_limits)}"
+        )
