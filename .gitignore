@@ -53,3 +53,7 @@ logs/
 
 # Docker
 *.tar
+
+# Allow preprocessed pipeline outputs
+!data/preprocessed/
+!data/preprocessed/*.npz
