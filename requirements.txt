@@ -13,4 +13,4 @@ lerobot
 pynput>=1.7.0
 fastapi>=0.115.0
 uvicorn>=0.30.0
-pybullet
+ikpy>=3.0.0

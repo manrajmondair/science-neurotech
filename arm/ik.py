@@ -1,16 +1,16 @@
-"""PyBullet-based inverse kinematics support for high-level arm control."""
+"""ikpy-based inverse kinematics support for high-level arm control."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
 import importlib.util
 import logging
 import math
-from pathlib import Path
 import tempfile
-from typing import Any
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 from .commands import EndEffectorDeltaCommand
 from .controller import extract_joint_positions
@@ -38,7 +38,9 @@ class ArmKinematics:
     tool_length: float = 0.1
 
     @classmethod
-    def from_urdf(cls, urdf_path: str | Path, joint_names: list[str]) -> "ArmKinematics":
+    def from_urdf(
+        cls, urdf_path: str | Path, joint_names: list[str]
+    ) -> "ArmKinematics":
         root = ET.parse(urdf_path).getroot()
         joint_origins = {
             joint.attrib["name"]: _parse_origin_xyz(joint)
@@ -62,7 +64,7 @@ class ArmKinematics:
 
 @dataclass
 class SO101IKTranslator:
-    """Translate end-effector deltas into joint targets using PyBullet IK."""
+    """Translate end-effector deltas into joint targets using ikpy IK."""
 
     urdf_path: str | None = None
     use_degrees: bool = True
@@ -76,20 +78,27 @@ class SO101IKTranslator:
             "wrist_roll",
         ]
     )
-    end_effector_link: str = "tool_tip"
-    _backend: "_PyBulletIKBackend" = field(init=False, repr=False)
+    end_effector_link: str = "gripper_link"
+    # Workspace floor limits: commands that would move the end-effector below
+    # these values are clamped so the arm never solves to a pose that would
+    # crash into the table or fold behind the base.
+    workspace_min_x: float = 0.0
+    workspace_min_z: float = 0.0
+    _backend: "_IKPyBackend" = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if not _pybullet_available():
-            raise ImportError("pybullet is required for IK. Install dependencies and run `uv sync`.")
+        if not _ikpy_available():
+            raise ImportError("ikpy is required for IK. Run `uv add ikpy`.")
         if self.urdf_path:
             self.kinematics = ArmKinematics.from_urdf(self.urdf_path, self.joint_names)
-        self._backend = _PyBulletIKBackend(
+        self._backend = _IKPyBackend(
             kinematics=self.kinematics,
             urdf_path=self.urdf_path,
             use_degrees=self.use_degrees,
             joint_names=self.joint_names,
             end_effector_link=self.end_effector_link,
+            workspace_min_x=self.workspace_min_x,
+            workspace_min_z=self.workspace_min_z,
         )
 
     def forward(self, observation: Mapping[str, Any]) -> ArmPose:
@@ -104,93 +113,76 @@ class SO101IKTranslator:
         return self._backend.translate(command, observation, last_targets)
 
 
-def _pybullet_available() -> bool:
-    return importlib.util.find_spec("pybullet") is not None
+def _ikpy_available() -> bool:
+    return importlib.util.find_spec("ikpy") is not None
 
 
 @dataclass
-class _PyBulletIKBackend:
-    """PyBullet-backed FK/IK wrapper."""
+class _IKPyBackend:
+    """ikpy-backed FK/IK wrapper."""
 
     kinematics: ArmKinematics
     urdf_path: str | None
     use_degrees: bool
     joint_names: list[str]
     end_effector_link: str
-    _tempdir: tempfile.TemporaryDirectory[str] | None = field(default=None, init=False, repr=False)
-    _client: int = field(default=0, init=False, repr=False)
-    _pybullet: Any = field(default=None, init=False, repr=False)
-    _robot_id: int = field(default=0, init=False, repr=False)
-    _joint_name_to_index: dict[str, int] = field(default_factory=dict, init=False, repr=False)
-    _joint_indices: list[int] = field(default_factory=list, init=False, repr=False)
-    _end_effector_index: int = field(default=0, init=False, repr=False)
-    # Full DOF structure for building correctly-sized IK arrays.
-    _dof_joint_names: list[str] = field(default_factory=list, init=False, repr=False)
-    _dof_urdf_limits: list[tuple[float, float]] = field(default_factory=list, init=False, repr=False)
-    _dof_index: dict[str, int] = field(default_factory=dict, init=False, repr=False)
+    workspace_min_x: float = 0.0
+    workspace_min_z: float = 0.0
+    _tempdir: tempfile.TemporaryDirectory[str] | None = field(
+        default=None, init=False, repr=False
+    )
+    _chain: Any = field(default=None, init=False, repr=False)
+    # Maps each joint_name to its index in the ikpy joint array.
+    # ikpy arrays have length = len(chain.links); index 0 is always the fixed
+    # base link (value 0.0), and active joints start at index 1.
+    _joint_chain_index: dict[str, int] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
-        import pybullet as pybullet
+        from ikpy.chain import Chain
 
-        self._pybullet = pybullet
-        self._client = pybullet.connect(pybullet.DIRECT)
         urdf_path = self.urdf_path or self._build_generated_urdf()
-        self._robot_id = pybullet.loadURDF(urdf_path, useFixedBase=True, physicsClientId=self._client)
+        root_link = _find_root_link(urdf_path)
+        self._chain = Chain.from_urdf_file(urdf_path, base_elements=[root_link])
+        self._joint_chain_index = self._build_joint_index(urdf_path)
 
-        dof_idx = 0
-        for joint_index in range(pybullet.getNumJoints(self._robot_id, physicsClientId=self._client)):
-            info = pybullet.getJointInfo(self._robot_id, joint_index, physicsClientId=self._client)
-            joint_name = info[1].decode("utf-8")
-            joint_type = info[2]
-            link_name = info[12].decode("utf-8")
-            lower_limit = float(info[8])
-            upper_limit = float(info[9])
+    def _build_joint_index(self, urdf_path: str) -> dict[str, int]:
+        """Map each joint_name to its index in the ikpy joint array.
 
-            if joint_type != pybullet.JOINT_FIXED:
-                self._dof_joint_names.append(joint_name)
-                self._dof_urdf_limits.append((lower_limit, upper_limit))
-                self._dof_index[joint_name] = dof_idx
-                dof_idx += 1
+        ikpy arrays are indexed by link position in the chain. We parse the
+        URDF to find joint_name → child_link_name, then look up that link in
+        the chain. For generated URDFs whose joint names are numeric ("1"-"5")
+        and don't match joint_names, we fall back to positional ordering.
+        """
+        root = ET.parse(urdf_path).getroot()
+        joint_to_child: dict[str, str] = {}
+        for joint in root.findall("joint"):
+            child = joint.find("child")
+            if child is not None:
+                joint_to_child[joint.attrib["name"]] = child.attrib["link"]
 
-            if joint_type == pybullet.JOINT_REVOLUTE:
-                self._joint_name_to_index[joint_name] = joint_index
-            if link_name == self.end_effector_link:
-                self._end_effector_index = joint_index
+        link_name_to_idx = {link.name: i for i, link in enumerate(self._chain.links)}
 
-        missing = [name for name in self.joint_names if name not in self._joint_name_to_index]
-        if missing:
-            raise ValueError(
-                "URDF does not expose the configured IK joints. "
-                f"Missing: {missing}. Available revolute joints: {sorted(self._joint_name_to_index)}"
-            )
-        self._joint_indices = [self._joint_name_to_index[name] for name in self.joint_names]
-        if self._end_effector_index == 0:
-            raise ValueError(
-                f"URDF does not expose the configured end-effector link '{self.end_effector_link}'."
-            )
+        result: dict[str, int] = {}
+        for pos, jname in enumerate(self.joint_names):
+            child_link = joint_to_child.get(jname)
+            if child_link is not None and child_link in link_name_to_idx:
+                result[jname] = link_name_to_idx[child_link]
+            else:
+                # Fallback: positional — joint i is at chain index i+1 (after base).
+                result[jname] = pos + 1
+        return result
 
     def forward(self, observation: Mapping[str, Any]) -> ArmPose:
-        joints = extract_joint_positions(observation)
-        q = [
-            self._to_radians(joints["shoulder_pan"]),
-            self._to_radians(joints["shoulder_lift"]),
-            self._to_radians(joints["elbow_flex"]),
-            self._to_radians(joints["wrist_flex"]),
-            self._to_radians(joints["wrist_roll"]),
-        ]
-        self._reset_state(q)
-        state = self._pybullet.getLinkState(
-            self._robot_id,
-            self._end_effector_index,
-            computeForwardKinematics=True,
-            physicsClientId=self._client,
-        )
-        position = state[4]
+        q = self._make_joint_array(extract_joint_positions(observation))
+        transform = self._chain.forward_kinematics(q)
+        position = transform[:3, 3]
         return ArmPose(
             x=float(position[0]),
             y=float(position[1]),
             z=float(position[2]),
-            tool_roll=float(joints["wrist_roll"]),
+            tool_roll=float(extract_joint_positions(observation)["wrist_roll"]),
         )
 
     def translate(
@@ -206,29 +198,34 @@ class _PyBulletIKBackend:
         # For joints that accumulate deltas (wrist_roll, gripper), prefer last
         # commanded target as the base to prevent drift from chasing the observation.
         base = last_targets if last_targets else joints
-        gripper = max(0.0, min(100.0, base.get("gripper", joints["gripper"]) + command.d_jaw))
+        gripper = max(
+            0.0, min(100.0, base.get("gripper", joints["gripper"]) + command.d_jaw)
+        )
         wrist_roll_base = base.get("wrist_roll", joints["wrist_roll"])
 
         # Only x/radial reach and z/height commands require IK. Pan, roll, and
         # gripper updates can pass through directly without perturbing the arm chain.
         if command.dx == 0.0 and command.dz == 0.0:
-            targets = {
+            return {
                 "shoulder_pan": self._from_radians(target_pan_rad),
-                "shoulder_lift": float(base.get("shoulder_lift", joints["shoulder_lift"])),
+                "shoulder_lift": float(
+                    base.get("shoulder_lift", joints["shoulder_lift"])
+                ),
                 "elbow_flex": float(base.get("elbow_flex", joints["elbow_flex"])),
                 "wrist_flex": float(base.get("wrist_flex", joints["wrist_flex"])),
                 "wrist_roll": float(wrist_roll_base + command.d_rot),
                 "gripper": float(gripper),
             }
-            return targets
 
         current_pose = self.forward(observation)
         current_reach = math.hypot(current_pose.x, current_pose.y)
         target_reach = max(0.0, current_reach + command.dx)
+        target_x = max(self.workspace_min_x, target_reach * math.cos(target_pan_rad))
+        target_z = max(self.workspace_min_z, current_pose.z + command.dz)
         target_position = [
-            target_reach * math.cos(target_pan_rad),
+            target_x,
             target_reach * math.sin(target_pan_rad),
-            current_pose.z + command.dz,
+            target_z,
         ]
         logger.info(
             "IK target_position=%s command=%s current_pose=%s target_pan_rad=%s target_reach=%s",
@@ -238,81 +235,52 @@ class _PyBulletIKBackend:
             target_pan_rad,
             target_reach,
         )
-        # Build IK arrays sized for every DOF in the model so the null-space
-        # solver receives correctly aligned constraints. Arrays sized smaller
-        # than numDofs cause PyBullet to apply constraints to the wrong joints.
-        wrist_roll_rad = self._to_radians(joints["wrist_roll"])
-        lower_limits: list[float] = []
-        upper_limits: list[float] = []
-        joint_ranges: list[float] = []
-        rest_poses: list[float] = []
 
-        for dof_name, (urdf_lower, urdf_upper) in zip(
-            self._dof_joint_names, self._dof_urdf_limits
-        ):
-            if dof_name == "shoulder_pan":
-                lower_limits.append(target_pan_rad)
-                upper_limits.append(target_pan_rad)
-                joint_ranges.append(0.0)
-                rest_poses.append(target_pan_rad)
-            elif dof_name == "wrist_roll":
-                lower_limits.append(wrist_roll_rad)
-                upper_limits.append(wrist_roll_rad)
-                joint_ranges.append(0.0)
-                rest_poses.append(wrist_roll_rad)
-            elif dof_name in joints:
-                # Arm joint: use [-π, π] so the null-space is not artificially
-                # clamped below the URDF limits PyBullet enforces as hard bounds.
-                lower_limits.append(-math.pi)
-                upper_limits.append(math.pi)
-                joint_ranges.append(2.0 * math.pi)
-                rest_poses.append(self._to_radians(float(joints[dof_name])))
-            else:
-                # Non-arm DOF (e.g. gripper jaw): constrain within URDF limits,
-                # rest at midpoint so the solver doesn't chase arbitrary values.
-                j_range = max(0.0, urdf_upper - urdf_lower)
-                lower_limits.append(urdf_lower)
-                upper_limits.append(urdf_upper)
-                joint_ranges.append(j_range)
-                rest_poses.append((urdf_lower + urdf_upper) / 2.0)
+        # Use current joint config as the initial guess so the solver stays near
+        # the rest pose — equivalent to pybullet's restPoses null-space parameter.
+        initial_q = self._make_joint_array(joints)
+        initial_q[self._joint_chain_index["shoulder_pan"]] = target_pan_rad
 
-        self._reset_state([rest_poses[self._dof_index[n]] for n in self.joint_names])
+        # Clip initial guess to joint bounds so scipy.optimize.least_squares
+        # doesn't raise "Initial guess is outside of provided bounds".
+        for i, link in enumerate(self._chain.links):
+            bounds = getattr(link, "bounds", None)
+            if bounds is not None:
+                lo, hi = bounds
+                if lo is not None and hi is not None:
+                    initial_q[i] = max(lo, min(hi, initial_q[i]))
 
-        solution = self._pybullet.calculateInverseKinematics(
-            self._robot_id,
-            self._end_effector_index,
-            targetPosition=target_position,
-            lowerLimits=lower_limits,
-            upperLimits=upper_limits,
-            jointRanges=joint_ranges,
-            restPoses=rest_poses,
-            maxNumIterations=500,
-            residualThreshold=1e-4,
-            physicsClientId=self._client,
+        solution = self._chain.inverse_kinematics(
+            target_position=target_position,
+            initial_position=initial_q,
         )
 
         targets = {
             "shoulder_pan": self._from_radians(target_pan_rad),
-            "shoulder_lift": self._from_radians(solution[self._dof_index["shoulder_lift"]]),
-            "elbow_flex": self._from_radians(solution[self._dof_index["elbow_flex"]]),
-            "wrist_flex": self._from_radians(solution[self._dof_index["wrist_flex"]]),
+            "shoulder_lift": self._from_radians(
+                float(solution[self._joint_chain_index["shoulder_lift"]])
+            ),
+            "elbow_flex": self._from_radians(
+                float(solution[self._joint_chain_index["elbow_flex"]])
+            ),
+            "wrist_flex": self._from_radians(
+                float(solution[self._joint_chain_index["wrist_flex"]])
+            ),
             "wrist_roll": float(wrist_roll_base + command.d_rot),
             "gripper": float(gripper),
         }
         logger.info("IK solved targets=%s", targets)
         return targets
 
-    def _reset_state(self, joint_positions_rad: list[float]) -> None:
-        for idx, joint_index in enumerate(self._joint_indices[:5]):
-            self._pybullet.resetJointState(
-                self._robot_id,
-                joint_index,
-                joint_positions_rad[idx],
-                physicsClientId=self._client,
-            )
+    def _make_joint_array(self, joints: Mapping[str, Any]) -> list[float]:
+        """Build ikpy joint array with base=0 at index 0 and active joints by chain index."""
+        q = [0.0] * len(self._chain.links)
+        for jname in self.joint_names:
+            q[self._joint_chain_index[jname]] = self._to_radians(float(joints[jname]))
+        return q
 
     def _build_generated_urdf(self) -> str:
-        self._tempdir = tempfile.TemporaryDirectory(prefix="so101-pybullet-")
+        self._tempdir = tempfile.TemporaryDirectory(prefix="so101-ikpy-")
         urdf_path = Path(self._tempdir.name) / "so101_generated.urdf"
         urdf_path.write_text(_generated_so101_urdf(self.kinematics), encoding="utf-8")
         return str(urdf_path)
@@ -338,7 +306,7 @@ def _generated_so101_urdf(kinematics: ArmKinematics) -> str:
   <link name="tool_link"/>
   <link name="tool_tip"/>
 
-  <joint name="1" type="revolute">
+  <joint name="shoulder_pan" type="revolute">
     <parent link="base"/>
     <child link="pan_link"/>
     <origin xyz="0 0 {kinematics.base_height}" rpy="0 0 0"/>
@@ -346,7 +314,7 @@ def _generated_so101_urdf(kinematics: ArmKinematics) -> str:
     <limit lower="-3.14159" upper="3.14159" effort="1" velocity="1"/>
   </joint>
 
-  <joint name="2" type="revolute">
+  <joint name="shoulder_lift" type="revolute">
     <parent link="pan_link"/>
     <child link="upper_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -354,7 +322,7 @@ def _generated_so101_urdf(kinematics: ArmKinematics) -> str:
     <limit lower="-3.14159" upper="3.14159" effort="1" velocity="1"/>
   </joint>
 
-  <joint name="3" type="revolute">
+  <joint name="elbow_flex" type="revolute">
     <parent link="upper_link"/>
     <child link="forearm_link"/>
     <origin xyz="{kinematics.upper_arm_length} 0 0" rpy="0 0 0"/>
@@ -362,7 +330,7 @@ def _generated_so101_urdf(kinematics: ArmKinematics) -> str:
     <limit lower="-3.14159" upper="3.14159" effort="1" velocity="1"/>
   </joint>
 
-  <joint name="4" type="revolute">
+  <joint name="wrist_flex" type="revolute">
     <parent link="forearm_link"/>
     <child link="tool_link"/>
     <origin xyz="{kinematics.forearm_length} 0 0" rpy="0 0 0"/>
@@ -370,7 +338,7 @@ def _generated_so101_urdf(kinematics: ArmKinematics) -> str:
     <limit lower="-3.14159" upper="3.14159" effort="1" velocity="1"/>
   </joint>
 
-  <joint name="5" type="revolute">
+  <joint name="wrist_roll" type="revolute">
     <parent link="tool_link"/>
     <child link="tool_tip"/>
     <origin xyz="{kinematics.tool_length} 0 0" rpy="0 0 0"/>
@@ -379,6 +347,21 @@ def _generated_so101_urdf(kinematics: ArmKinematics) -> str:
   </joint>
 </robot>
 """
+
+
+def _find_root_link(urdf_path: str) -> str:
+    """Return the root (base) link name — the link that is not a child of any joint."""
+    root = ET.parse(urdf_path).getroot()
+    all_links = {link.attrib["name"] for link in root.findall("link")}
+    child_links = {
+        j.find("child").attrib["link"]
+        for j in root.findall("joint")
+        if j.find("child") is not None
+    }
+    roots = all_links - child_links
+    if len(roots) != 1:
+        raise ValueError(f"Expected exactly one root link, found: {roots}")
+    return next(iter(roots))
 
 
 def _parse_origin_xyz(joint: ET.Element) -> tuple[float, float, float]:

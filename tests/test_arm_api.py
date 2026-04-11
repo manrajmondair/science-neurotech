@@ -43,8 +43,8 @@ class FakeRobot:
 
 class SO101IKTranslatorTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.pybullet_available = importlib.util.find_spec("pybullet") is not None
-        if not self.pybullet_available:
+        self.ikpy_available = importlib.util.find_spec("ikpy") is not None
+        if not self.ikpy_available:
             self.translator = None
         else:
             self.translator = SO101IKTranslator(use_degrees=True)
@@ -58,8 +58,8 @@ class SO101IKTranslatorTests(unittest.TestCase):
         }
 
     def test_zero_delta_preserves_pose_and_direct_axes(self) -> None:
-        if not self.pybullet_available:
-            self.skipTest("pybullet is not installed in this environment")
+        if not self.ikpy_available:
+            self.skipTest("ikpy is not installed in this environment")
         pose_before = self.translator.forward(self.observation)
 
         targets = self.translator.translate(EndEffectorDeltaCommand(), self.observation)
@@ -72,8 +72,8 @@ class SO101IKTranslatorTests(unittest.TestCase):
         self.assertAlmostEqual(targets["gripper"], 40.0)
 
     def test_translation_applies_cartesian_and_tool_deltas(self) -> None:
-        if not self.pybullet_available:
-            self.skipTest("pybullet is not installed in this environment")
+        if not self.ikpy_available:
+            self.skipTest("ikpy is not installed in this environment")
         pose_before = self.translator.forward(self.observation)
         command = EndEffectorDeltaCommand(dx=-0.01, dy=0.015, dz=-0.005, d_rot=7.0, d_jaw=12.0)
 
@@ -87,8 +87,8 @@ class SO101IKTranslatorTests(unittest.TestCase):
         self.assertAlmostEqual(targets["gripper"], 52.0)
 
     def test_dy_only_changes_shoulder_pan_target(self) -> None:
-        if not self.pybullet_available:
-            self.skipTest("pybullet is not installed in this environment")
+        if not self.ikpy_available:
+            self.skipTest("ikpy is not installed in this environment")
         targets = self.translator.translate(EndEffectorDeltaCommand(dy=0.2), self.observation)
 
         self.assertAlmostEqual(math.radians(targets["shoulder_pan"]), 0.2, places=5)
@@ -99,8 +99,8 @@ class SO101IKTranslatorTests(unittest.TestCase):
         self.assertAlmostEqual(targets["gripper"], 40.0)
 
     def test_roll_only_does_not_recompute_ik_joints(self) -> None:
-        if not self.pybullet_available:
-            self.skipTest("pybullet is not installed in this environment")
+        if not self.ikpy_available:
+            self.skipTest("ikpy is not installed in this environment")
         targets = self.translator.translate(EndEffectorDeltaCommand(d_rot=7.0), self.observation)
 
         self.assertAlmostEqual(targets["shoulder_pan"], 0.0)
@@ -111,8 +111,8 @@ class SO101IKTranslatorTests(unittest.TestCase):
         self.assertAlmostEqual(targets["gripper"], 40.0)
 
     def test_gripper_target_is_clamped(self) -> None:
-        if not self.pybullet_available:
-            self.skipTest("pybullet is not installed in this environment")
+        if not self.ikpy_available:
+            self.skipTest("ikpy is not installed in this environment")
         targets = self.translator.translate(
             EndEffectorDeltaCommand(d_jaw=90.0),
             self.observation,
@@ -120,10 +120,10 @@ class SO101IKTranslatorTests(unittest.TestCase):
 
         self.assertEqual(targets["gripper"], 100.0)
 
-    def test_ik_requires_pybullet_dependency(self) -> None:
-        if self.pybullet_available:
-            self.skipTest("pybullet is installed in this environment")
-        with self.assertRaisesRegex(ImportError, "pybullet is required for IK"):
+    def test_ik_requires_ikpy_dependency(self) -> None:
+        if self.ikpy_available:
+            self.skipTest("ikpy is installed in this environment")
+        with self.assertRaisesRegex(ImportError, "ikpy is required for IK"):
             SO101IKTranslator(use_degrees=True)
 
     def test_kinematics_can_be_loaded_from_so101_urdf(self) -> None:
@@ -159,8 +159,8 @@ class SO101IKTranslatorTests(unittest.TestCase):
 
 class SO101ArmAPITests(unittest.TestCase):
     def test_api_translates_end_effector_command_to_low_level_targets(self) -> None:
-        if importlib.util.find_spec("pybullet") is None:
-            self.skipTest("pybullet is not installed in this environment")
+        if importlib.util.find_spec("ikpy") is None:
+            self.skipTest("ikpy is not installed in this environment")
         fake_robot = FakeRobot()
         controller = SO101ArmController(
             settings=ArmSettings(port="/dev/mock"),
