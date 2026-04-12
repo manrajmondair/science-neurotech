@@ -53,3 +53,5 @@ logs/
 
 # Docker
 *.tar
+full_repo.txt
+file_tree.txt
