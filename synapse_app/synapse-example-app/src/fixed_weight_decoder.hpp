@@ -21,7 +21,7 @@ namespace app {
 constexpr size_t kNumNeural = 64;         // Neural channels (0-63)
 constexpr size_t kNumThresholds = 3;      // 3σ, 4σ, 5σ
 constexpr size_t kNumFeatures = kNumNeural * kNumThresholds;  // 192
-constexpr size_t kSeqLen = 30;            // 30 bins = 300ms
+constexpr size_t kSeqLen = 15;            // 15 bins × 100ms = 1500ms
 constexpr size_t kNumOutputs = 7;         // joy_x, joy_y, rot, depth, lt, rt, gate
 constexpr float kSigmaThresholds[kNumThresholds] = {3.0f, 4.0f, 5.0f};
 constexpr float kGateThreshold = 0.5f;
